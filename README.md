@@ -1,69 +1,78 @@
 | Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-H21 | ESP32-H4 | ESP32-P4 | ESP32-S2 | ESP32-S3 | ESP32-S31 |
 | ----------------- | ----- | -------- | -------- | -------- | -------- | --------- | -------- | --------- | -------- | -------- | -------- | -------- | --------- |
 
-# Blink Example
+# Overheat Protection System
 
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
+This project reads temperature data from a DHT11 sensor and enters an emergency state when the temperature reaches a configured threshold. In that state, it drives an indicator LED and a buzzer using LEDC PWM. A reset button clears the latch and returns the system to normal operation.
 
-This example demonstrates how to blink a LED by using the GPIO driver or using the [led_strip](https://components.espressif.com/component/espressif/led_strip) library if the LED is addressable e.g. [WS2812](https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf). The `led_strip` library is installed via [component manager](main/idf_component.yml).
+## Features
 
-## How to Use Example
+- Periodic temperature sampling from a DHT11 sensor on GPIO 18.
+- Emergency latch when the temperature reaches 40°C or higher.
+- Buzzer output on GPIO 21 driven by LEDC PWM.
+- Status LED on the GPIO configured by `CONFIG_BLINK_GPIO`.
+- Interrupt-driven emergency trigger button on GPIO 4.
+- Interrupt-driven emergency reset button on GPIO 19.
 
-Before project configuration and build, be sure to set the correct chip target using `idf.py set-target <chip_name>`.
+## Hardware Required
 
-### Hardware Required
+- An ESP32-family development board supported by ESP-IDF.
+- A DHT11 temperature and humidity sensor.
+- A buzzer connected to GPIO 21.
+- An indicator LED connected to the GPIO selected by `CONFIG_BLINK_GPIO`.
+- Two momentary push buttons:
+  - GPIO 4 to trigger the emergency state.
+  - GPIO 19 to clear the emergency state.
 
-* A development board with normal LED or addressable LED on-board (e.g., ESP32-S3-DevKitC, ESP32-C6-DevKitC etc.)
-* A USB cable for Power supply and programming
+## Wiring Summary
 
-See [Development Boards](https://www.espressif.com/en/products/devkits) for more information about it.
+- DHT11 data pin: GPIO 18
+- Buzzer: GPIO 21
+- Emergency button: GPIO 4, active low with internal pull-up
+- Reset button: GPIO 19, active low with internal pull-up
+- Status LED: configured through menuconfig with `CONFIG_BLINK_GPIO`
 
-### Configure the Project
+## Configuration
 
-Open the project configuration menu (`idf.py menuconfig`).
+Open the project configuration menu with:
 
-In the `Example Configuration` menu:
-
-* Select the LED type in the `Blink LED type` option.
-  * Use `GPIO` for regular LED
-  * Use `LED strip` for addressable LED
-* If the LED type is `LED strip`, select the backend peripheral
-  * `RMT` is only available for ESP targets with RMT peripheral supported
-  * `SPI` is available for all ESP targets
-* Set the GPIO number used for the signal in the `Blink GPIO number` option.
-* Set the blinking period in the `Blink period in ms` option.
-
-### Build and Flash
-
-Run `idf.py -p PORT flash monitor` to build, flash and monitor the project.
-
-(To exit the serial monitor, type ``Ctrl-]``.)
-
-See the [Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/latest/get-started/index.html) for full steps to configure and use ESP-IDF to build projects.
-
-## Example Output
-
-As you run the example, you will see the LED blinking, according to the previously defined period. For the addressable LED, you can also change the LED color by setting the `led_strip_set_pixel(led_strip, 0, 16, 16, 16);` (LED Strip, Pixel Number, Red, Green, Blue) with values from 0 to 255 in the [source file](main/blink_example_main.c).
-
-```text
-I (315) example: Example configured to blink addressable LED!
-I (325) example: Turning the LED OFF!
-I (1325) example: Turning the LED ON!
-I (2325) example: Turning the LED OFF!
-I (3325) example: Turning the LED ON!
-I (4325) example: Turning the LED OFF!
-I (5325) example: Turning the LED ON!
-I (6325) example: Turning the LED OFF!
-I (7325) example: Turning the LED ON!
-I (8325) example: Turning the LED OFF!
+```sh
+idf.py menuconfig
 ```
 
-Note: The color order could be different according to the LED model.
+Make sure the GPIO assigned to `Blink GPIO` matches the LED you want to use as the status indicator.
 
-The pixel number indicates the pixel position in the LED strip. For a single LED, use 0.
+If needed, update the target chip first:
 
-## Troubleshooting
+```sh
+idf.py set-target <chip_name>
+```
 
-* If the LED isn't blinking, check the GPIO or the LED type selection in the `Example Configuration` menu.
+## Build and Flash
 
-For any technical queries, please open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub. We will get back to you soon.
+Build, flash, and monitor the project with:
+
+```sh
+idf.py -p PORT flash monitor
+```
+
+To exit the serial monitor, press `Ctrl-]`.
+
+## Runtime Behavior
+
+The firmware creates a queue shared by the sensor task, the emergency button ISR, and the reset button ISR.
+
+- The sensor task reads temperature and humidity every 2 seconds.
+- If the temperature is 40°C or higher, the system latches into emergency mode.
+- In emergency mode, the indicator LED blinks and the buzzer is enabled.
+- Pressing the reset button sends a reset signal that clears the latch.
+
+## Project Structure
+
+- [main/project1.c](main/project1.c) contains the application logic.
+- [main/CMakeLists.txt](main/CMakeLists.txt) registers the firmware source file.
+- [main/idf_component.yml](main/idf_component.yml) declares the DHT and LED strip dependencies.
+
+## Notes
+
+The project currently uses the DHT11 sensor type defined in code. If you replace the sensor with another DHT variant, update the sensor type constant in [main/project1.c](main/project1.c).
